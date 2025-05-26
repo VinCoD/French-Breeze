@@ -24,7 +24,7 @@ export default function AuthAndOnboardingPage() {
     level: contextLevel, setLevel, 
     userName: contextUserName, setUserName, 
     signUpWithEmail, signInWithEmail,
-    signInWithGoogle, signInWithFacebook 
+    signInWithGoogle
   } = useUser();
   const { toast } = useToast();
 
@@ -39,7 +39,7 @@ export default function AuthAndOnboardingPage() {
   const [selectedLevel, setSelectedLevel] = useState<FrenchLevel>("Beginner");
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null); // 'google' or 'facebook'
+  const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
 
@@ -81,7 +81,6 @@ export default function AuthAndOnboardingPage() {
       
       if (user) {
         toast({ title: authMode === "signup" ? "Sign Up Successful" : "Sign In Successful", description: "Welcome to French Breeze!" });
-        // UserContext useEffect will handle redirect or move to "details" step
       }
     } catch (err: any) {
       const errorMessage = err.message || "Authentication failed. Please try again.";
@@ -92,24 +91,21 @@ export default function AuthAndOnboardingPage() {
     }
   };
 
-  const handleSocialSignIn = async (provider: 'google' | 'facebook') => {
+  const handleSocialSignIn = async (provider: 'google') => {
     setError(null);
     setSocialSubmitting(provider);
     try {
       let user;
       if (provider === 'google') {
         user = await signInWithGoogle();
-      } else {
-        user = await signInWithFacebook();
       }
       if (user) {
         toast({ title: "Sign In Successful", description: `Welcome, ${user.displayName || 'Explorer'}!` });
-        // UserContext useEffect will handle redirect or move to "details" step
       }
     } catch (err: any) {
       let errorMessage = "Social sign-in failed. Please try again.";
       if (err.code === 'auth/account-exists-with-different-credential') {
-        errorMessage = "An account already exists with this email using a different sign-in method. Try signing in with that method, or link your accounts in settings if available.";
+        errorMessage = "An account already exists with this email using a different sign-in method. Try signing in with that method.";
       } else if (err.code === 'auth/popup-closed-by-user') {
         errorMessage = "Sign-in popup closed. Please try again.";
       } else if (err.code === 'auth/cancelled-popup-request') {
@@ -220,21 +216,6 @@ export default function AuthAndOnboardingPage() {
                     <>
                       <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 112.8 512 0 398.9 0 256S112.8 0 244 0c69.8 0 130.8 28.5 173.4 72.9l-65.8 64.4C332.9 112.3 291.5 96 244 96c-83.8 0-152.3 68.4-152.3 152S160.2 416 244 416c51.9 0 94.3-19.9 122.2-51.1l65.8 64.4C404.4 467.3 331.6 512 244 512zM427.8 209.9c0-12.9-1.1-25.4-3.4-37.5H244v71.7h105.9c-4.7 24.3-18.9 44.7-39.9 58.8l65.8 64.4C415.1 346.9 427.8 293.8 427.8 209.9z"></path></svg>
                       Continue with Google
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={() => handleSocialSignIn('facebook')}
-                  disabled={!!socialSubmitting || isSubmitting}
-                >
-                   {socialSubmitting === 'facebook' ? (
-                    "Processing..."
-                  ) : (
-                    <>
-                     <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="facebook" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M504 256C504 119 393 8 256 8S8 119 8 256c0 123.78 90.69 226.38 209.25 245V327.69h-63V256h63v-54.64c0-62.15 37-96.48 93.67-96.48 27.14 0 55.52 4.84 55.52 4.84v61h-31.28c-30.8 0-40.41 19.12-40.41 38.73V256h68.78l-11 71.69h-57.78V501C413.31 482.38 504 379.78 504 256z"></path></svg>
-                      Continue with Facebook
                     </>
                   )}
                 </Button>

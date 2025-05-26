@@ -10,9 +10,8 @@ import {
   onAuthStateChanged, 
   signOut as firebaseSignOut,
   updateProfile,
-  GoogleAuthProvider, // Added
-  FacebookAuthProvider, // Added
-  signInWithPopup // Added
+  GoogleAuthProvider, 
+  signInWithPopup 
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase'; 
 
@@ -32,8 +31,7 @@ interface UserContextType {
   resetStreak: () => void;
   signUpWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithEmail: (email: string, password: string) => Promise<User | null>;
-  signInWithGoogle: () => Promise<User | null>; // Added
-  signInWithFacebook: () => Promise<User | null>; // Added
+  signInWithGoogle: () => Promise<User | null>; 
   signOut: () => Promise<void>;
 }
 
@@ -56,13 +54,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const storedLevel = localStorage.getItem(`frenchBreezeLevel_${user.uid}`) as FrenchLevel;
         if (storedLevel) setLevelState(storedLevel); else setLevelState(null);
         
-        let currentName = user.displayName; // Prefer Firebase profile name first
-        if (!currentName) { // If not on Firebase profile, check local storage
+        let currentName = user.displayName; 
+        if (!currentName) { 
             currentName = localStorage.getItem(`frenchBreezeUserName_${user.uid}`);
         }
         if (currentName) {
             setUserNameState(currentName);
-            // Ensure localStorage is consistent if Firebase displayName was used
             if (user.displayName && localStorage.getItem(`frenchBreezeUserName_${user.uid}`) !== user.displayName) {
                  localStorage.setItem(`frenchBreezeUserName_${user.uid}`, user.displayName);
             }
@@ -118,7 +115,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setFirebaseUser(auth.currentUser); 
           } catch (error) {
             console.error("Error updating Firebase profile name:", error);
-            // Potentially re-throw or handle in UI
           }
         }
       } else {
@@ -187,28 +183,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // onAuthStateChanged will update firebaseUser.
-      // If user has displayName from Google, context useEffect will pick it up.
       return result.user;
     } catch (error) {
       console.error("Error signing in with Google:", error);
-      throw error; 
-    }
-  };
-
-  const signInWithFacebook = async (): Promise<User | null> => {
-    const provider = new FacebookAuthProvider();
-    // Optional: Add scopes if needed, e.g., to get email
-    // provider.addScope('email');
-    // provider.setCustomParameters({
-    //   'display': 'popup'
-    // });
-    try {
-      const result = await signInWithPopup(auth, provider);
-      // onAuthStateChanged will update firebaseUser.
-      return result.user;
-    } catch (error) {
-      console.error("Error signing in with Facebook:", error);
       throw error; 
     }
   };
@@ -229,7 +206,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       progress, updateProgress, 
       dailyStreak, incrementStreak, resetStreak,
       signUpWithEmail, signInWithEmail, 
-      signInWithGoogle, signInWithFacebook, 
+      signInWithGoogle, 
       signOut
     }}>
       {children}
