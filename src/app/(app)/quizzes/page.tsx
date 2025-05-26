@@ -6,8 +6,17 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { quizzes } from '@/lib/data';
-import { ArrowRight, PuzzleIcon } from 'lucide-react';
-import Image from 'next/image';
+import { ArrowRight, PuzzleIcon, Handshake, Apple, Plane, Users2, Briefcase, ImageIcon as DefaultTopicIcon, type LucideIcon } from 'lucide-react';
+import Image from 'next/image'; // Still needed if some quizzes might have specific images in future
+
+const topicIconMap: Record<string, LucideIcon> = {
+  "Greetings": Handshake,
+  "Food": Apple,
+  "Travel": Plane,
+  "Family": Users2,
+  "Work": Briefcase,
+  "Default": DefaultTopicIcon
+};
 
 export default function QuizzesPage() {
   return (
@@ -22,21 +31,37 @@ export default function QuizzesPage() {
         Challenge yourself with quizzes on various French topics. Select a quiz to begin.
       </p>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {quizzes.map((quiz) => (
-          <Card key={quiz.id} className="flex flex-col overflow-hidden hover:shadow-lg transition-shadow">
-            <Image 
-                src={"https://placehold.co/400x200.png"} 
-                alt={`${quiz.title} quiz`} 
-                width={400} 
-                height={200} 
-                className="w-full h-48 object-cover"
-                data-ai-hint={`${quiz.topic.toLowerCase()} quiz`}
-              />
-            <CardHeader>
-              <CardTitle className="text-2xl">{quiz.title}</CardTitle>
-              <CardDescription>Topic: {quiz.topic} | Level: {quiz.level}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow flex flex-col justify-end">
+        {quizzes.map((quiz) => {
+          // Assuming quizzes don't have their own specific 'image' field in data.ts for now
+          // const quizImageSrc = quiz.image; // Uncomment if Quiz type gets an image field
+          const quizImageSrc = undefined; // Forcing icon display for now
+          const quizImageHint = quiz.dataAiHint || `${quiz.topic.toLowerCase()} quiz challenge`;
+          const QuizIcon = topicIconMap[quiz.topic] || topicIconMap.Default;
+
+          return (
+            <Card key={quiz.id} className="flex flex-col overflow-hidden hover:shadow-lg transition-shadow">
+              {quizImageSrc ? (
+                <Image
+                  src={quizImageSrc}
+                  alt={`${quiz.title} quiz`}
+                  width={400}
+                  height={200}
+                  className="w-full h-48 object-cover"
+                  data-ai-hint={quizImageHint}
+                />
+              ) : (
+                <div
+                  className="w-full h-48 bg-muted flex items-center justify-center rounded-t-lg"
+                  data-ai-hint={quizImageHint}
+                >
+                  <QuizIcon className="w-20 h-20 text-muted-foreground" />
+                </div>
+              )}
+              <CardHeader>
+                <CardTitle className="text-2xl">{quiz.title}</CardTitle>
+                <CardDescription>Topic: {quiz.topic} | Level: {quiz.level}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow flex flex-col justify-end">
                <p className="text-sm text-muted-foreground mb-3">
                 {quiz.questions.length} questions to test your skills.
               </p>
@@ -47,7 +72,8 @@ export default function QuizzesPage() {
               </Button>
             </CardContent>
           </Card>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

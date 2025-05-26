@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image'; // Added Image import
+// Removed Image import as it's no longer used for the logo here
 import { useRouter } from 'next/navigation';
 import { useUser, type FrenchLevel } from '@/context/UserContext';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Wind, LogIn, UserPlus } from 'lucide-react'; 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
+import { Wind, LogIn, UserPlus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 
@@ -20,10 +20,10 @@ type OnboardingStep = "auth" | "details";
 
 export default function AuthAndOnboardingPage() {
   const router = useRouter();
-  const { 
-    firebaseUser, loadingAuth, 
-    level: contextLevel, setLevel, 
-    userName: contextUserName, setUserName, 
+  const {
+    firebaseUser, loadingAuth,
+    level: contextLevel, setLevel,
+    userName: contextUserName, setUserName,
     signUpWithEmail, signInWithEmail,
     signInWithGoogle
   } = useUser();
@@ -31,14 +31,14 @@ export default function AuthAndOnboardingPage() {
 
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("auth");
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [nameInput, setNameInput] = useState("");
   const [selectedLevel, setSelectedLevel] = useState<FrenchLevel>("Beginner");
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,14 +47,14 @@ export default function AuthAndOnboardingPage() {
   useEffect(() => {
     if (!loadingAuth && firebaseUser) {
       if (contextUserName && contextLevel) {
-        router.push('/dashboard'); 
+        router.push('/dashboard');
       } else {
-        setOnboardingStep("details"); 
+        setOnboardingStep("details");
         setNameInput(firebaseUser.displayName || contextUserName || "");
         if (contextLevel) setSelectedLevel(contextLevel);
       }
     } else if (!loadingAuth && !firebaseUser) {
-      setOnboardingStep("auth"); 
+      setOnboardingStep("auth");
     }
   }, [firebaseUser, loadingAuth, contextUserName, contextLevel, router]);
 
@@ -79,9 +79,10 @@ export default function AuthAndOnboardingPage() {
       } else {
         user = await signInWithEmail(email, password);
       }
-      
+
       if (user) {
         toast({ title: authMode === "signup" ? "Sign Up Successful" : "Sign In Successful", description: "Welcome to French Breeze!" });
+        // Name and level will be prompted if not set, handled by useEffect
       }
     } catch (err: any) {
       const errorMessage = err.message || "Authentication failed. Please try again.";
@@ -102,6 +103,7 @@ export default function AuthAndOnboardingPage() {
       }
       if (user) {
         toast({ title: "Sign In Successful", description: `Welcome, ${user.displayName || 'Explorer'}!` });
+        // Name and level will be prompted if not set, handled by useEffect
       }
     } catch (err: any) {
       let errorMessage = "Social sign-in failed. Please try again.";
@@ -116,7 +118,7 @@ export default function AuthAndOnboardingPage() {
       } else if (err.code === 'auth/operation-not-allowed') {
         errorMessage = "Google Sign-In is not enabled for this app. Please contact support.";
       } else if (err.code === 'auth/unauthorized-domain') {
-        errorMessage = "This domain is not authorized for Google Sign-In. Please contact support.";
+        errorMessage = "This domain is not authorized for Google Sign-In. Please check Firebase settings or contact support.";
       }
       else {
         errorMessage = err.message || errorMessage;
@@ -134,7 +136,7 @@ export default function AuthAndOnboardingPage() {
     if (nameInput.trim() && selectedLevel) {
       setIsSubmitting(true);
       try {
-        await setUserName(nameInput.trim(), true); 
+        await setUserName(nameInput.trim(), true);
         setLevel(selectedLevel);
         toast({ title: "Profile Updated", description: "Your details have been saved."});
         router.push('/dashboard');
@@ -164,22 +166,15 @@ export default function AuthAndOnboardingPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-accent/30">
-      <div className="mb-8">
-        <Image 
-          src="https://placehold.co/300x150.png" 
-          alt="French Breeze Welcome" 
-          width={300} 
-          height={150} 
-          className="rounded-lg shadow-md"
-          data-ai-hint="language learning"
-          priority // Good for LCP on landing page
-        />
+      <div 
+        className="mb-8 flex items-center justify-center w-32 h-32 bg-primary/10 rounded-full shadow-lg"
+        data-ai-hint="app logo"
+      >
+        <Wind className="h-16 w-16 text-primary" />
       </div>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center items-center mb-2">
-            <Wind className="h-10 w-10 text-primary" />
-          </div>
+          {/* Icon moved to above the card for more prominence */}
           <CardTitle className="text-3xl font-bold text-primary">
             {onboardingStep === "auth" ? "Welcome to French Breeze!" : "Complete Your Profile"}
           </CardTitle>
@@ -218,14 +213,14 @@ export default function AuthAndOnboardingPage() {
 
               <div className="my-6 flex items-center">
                 <Separator className="flex-1" />
-                <span className="px-4 text-xs text-muted-foreground uppercase">Or</span>
+                <span className="px-4 text-xs text-muted-foreground uppercase">Or continue with</span>
                 <Separator className="flex-1" />
               </div>
 
               <div className="space-y-3">
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={() => handleSocialSignIn('google')}
                   disabled={!!socialSubmitting || isSubmitting}
                 >

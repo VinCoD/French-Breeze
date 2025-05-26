@@ -8,14 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { lessonTopics, lessons } from '@/lib/data';
-import { ArrowRight, BookMarked, CalendarDays, Zap } from 'lucide-react';
+import { ArrowRight, BookMarked, CalendarDays, Zap, Handshake, Apple, Plane, Users2, Briefcase, ImageIcon as DefaultTopicIcon, type LucideIcon } from 'lucide-react';
 import Image from 'next/image';
+
+const topicIconMap: Record<string, LucideIcon> = {
+  "Greetings": Handshake,
+  "Food": Apple,
+  "Travel": Plane,
+  "Family": Users2,
+  "Work": Briefcase,
+  "Default": DefaultTopicIcon
+};
 
 export default function DashboardPage() {
   const { firebaseUser, userName, level, progress, dailyStreak, incrementStreak } = useUser();
 
   React.useEffect(() => {
-    // Try to increment streak on dashboard load if a user is logged in
     if (firebaseUser) {
       incrementStreak();
     }
@@ -25,8 +33,6 @@ export default function DashboardPage() {
   const totalLessonsCount = lessons.length;
   const overallProgress = totalLessonsCount > 0 ? (completedLessonsCount / totalLessonsCount) * 100 : 0;
 
-  // If userName or level is not yet available (e.g. still completing onboarding), show a message or limited view.
-  // This check might be redundant if AppLayout/page.tsx fully handle redirection.
   if (!userName || !level) {
     return (
       <div className="text-center py-10">
@@ -44,7 +50,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
 
   return (
     <div className="space-y-8">
@@ -106,11 +111,20 @@ export default function DashboardPage() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {lessonTopics.map((topic) => {
             const topicSlug = topic.toLowerCase().replace(/\s+/g, '-');
-            const topicImage = lessons.find(l => l.topic === topic)?.image || "https://placehold.co/300x200.png";
-            const topicImageHint = lessons.find(l => l.topic === topic)?.dataAiHint || "learning concept";
+            const firstLessonInTopic = lessons.find(l => l.topic === topic);
+            const topicImageSrc = firstLessonInTopic?.image;
+            const topicImageHint = firstLessonInTopic?.dataAiHint || `${topic.toLowerCase()} learning`;
+            const TopicIcon = topicIconMap[topic] || topicIconMap.Default;
+
             return (
               <Card key={topic} className="overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                 <Image src={topicImage} alt={topic} width={300} height={150} className="w-full h-40 object-cover" data-ai-hint={topicImageHint} />
+                {topicImageSrc ? (
+                  <Image src={topicImageSrc} alt={topic} width={300} height={150} className="w-full h-40 object-cover" data-ai-hint={topicImageHint} />
+                ) : (
+                  <div className="w-full h-40 bg-muted flex items-center justify-center rounded-t-lg" data-ai-hint={topicImageHint}>
+                    <TopicIcon className="w-16 h-16 text-muted-foreground" />
+                  </div>
+                )}
                 <CardHeader>
                   <CardTitle>{topic}</CardTitle>
                 </CardHeader>

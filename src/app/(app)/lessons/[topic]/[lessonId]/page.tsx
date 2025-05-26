@@ -1,18 +1,28 @@
+
 // src/app/(app)/lessons/[topic]/[lessonId]/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link'; // Added Link import
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { getLessonById, type Lesson as LessonType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Volume2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Volume2, CheckCircle2, Handshake, Apple, Plane, Users2, Briefcase, ImageIcon as DefaultTopicIcon, type LucideIcon } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { generateAudioAction } from '@/app/actions';
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
+
+const topicIconMap: Record<string, LucideIcon> = {
+  "Greetings": Handshake,
+  "Food": Apple,
+  "Travel": Plane,
+  "Family": Users2,
+  "Work": Briefcase,
+  "Default": DefaultTopicIcon
+};
 
 export default function LessonDetailPage() {
   const params = useParams();
@@ -20,7 +30,7 @@ export default function LessonDetailPage() {
   const { toast } = useToast();
   const lessonId = params.lessonId as string;
   const [lesson, setLesson] = useState<LessonType | null>(null);
-  const [audioPlaying, setAudioPlaying] = useState<string | null>(null); // Stores the word/phrase whose audio is playing
+  const [audioPlaying, setAudioPlaying] = useState<string | null>(null);
   const { progress, updateProgress, incrementStreak } = useUser();
 
   useEffect(() => {
@@ -31,7 +41,7 @@ export default function LessonDetailPage() {
   }, [lessonId]);
 
   const handlePlayAudio = async (text: string) => {
-    if (audioPlaying === text) { // If same audio is clicked again, stop it (basic toggle)
+    if (audioPlaying === text) {
       const audioElement = document.getElementById("lesson-audio") as HTMLAudioElement;
       if (audioElement) {
         audioElement.pause();
@@ -41,10 +51,9 @@ export default function LessonDetailPage() {
       return;
     }
 
-    setAudioPlaying(text); // Indicate loading/playing
+    setAudioPlaying(text);
     toast({ title: "Pronunciation", description: `Generating audio for "${text}"...` });
-    
-    // Attempt to use browser's built-in speech synthesis first for speed
+
     if ('speechSynthesis' in window) {
       try {
         const utterance = new SpeechSynthesisUtterance(text);
@@ -52,18 +61,15 @@ export default function LessonDetailPage() {
         utterance.onend = () => setAudioPlaying(null);
         utterance.onerror = (event) => {
           console.error('SpeechSynthesisUtterance.onerror', event);
-          // Fallback to AI if browser synthesis fails
           fetchAndPlayAIAudio(text);
         };
         speechSynthesis.speak(utterance);
-        return; // Exit if browser synthesis is attempted
+        return;
       } catch (e) {
         console.warn("Browser speech synthesis failed, falling back to AI.", e);
-        // Fallback to AI if an error occurs during setup
       }
     }
-    
-    // Fallback to AI if browser speech synthesis is not available or failed
+
     fetchAndPlayAIAudio(text);
   };
 
@@ -72,11 +78,9 @@ export default function LessonDetailPage() {
     if (result.audioUrl) {
       const audioElement = document.getElementById("lesson-audio") as HTMLAudioElement;
       if (audioElement) {
-        audioElement.src = result.audioUrl; // This would be a real URL from AI
-        // For mock, this URL won't work, but shows the logic
+        audioElement.src = result.audioUrl;
         if (result.audioUrl.startsWith("mock-audio-for-")) {
             toast({ title: "Pronunciation", description: `Mock audio for "${text}". Real AI integration needed.`});
-            // We can't play a mock mp3, so we just clear playing state
             setAudioPlaying(null);
             return;
         }
@@ -95,7 +99,7 @@ export default function LessonDetailPage() {
   const handleMarkAsComplete = () => {
     if (lesson) {
       updateProgress(lesson.id, true);
-      incrementStreak(); // Increment streak when a lesson is completed
+      incrementStreak();
       toast({ title: "Lesson Complete!", description: `"${lesson.title}" marked as complete.`, className: "bg-green-100 dark:bg-green-900 border-green-500" });
     }
   };
@@ -105,6 +109,8 @@ export default function LessonDetailPage() {
   }
 
   const isCompleted = progress[lesson.id];
+  const LessonIcon = topicIconMap[lesson.topic] || topicIconMap.Default;
+  const imageHint = lesson.dataAiHint || `${lesson.topic.toLowerCase()} lesson visual`;
 
   return (
     <div className="space-y-6">
@@ -113,15 +119,19 @@ export default function LessonDetailPage() {
       </Button>
 
       <Card className="shadow-lg">
-        {lesson.image && (
+        {lesson.image ? (
             <div className="relative w-full h-64 rounded-t-lg overflow-hidden">
-                 <Image 
-                    src={lesson.image} 
-                    alt={lesson.title} 
-                    layout="fill" 
+                 <Image
+                    src={lesson.image}
+                    alt={lesson.title}
+                    layout="fill"
                     objectFit="cover"
-                    data-ai-hint={lesson.dataAiHint || "lesson visual"} />
+                    data-ai-hint={imageHint} />
             </div>
+        ) : (
+          <div className="w-full h-64 bg-muted flex items-center justify-center rounded-t-lg" data-ai-hint={imageHint}>
+            <LessonIcon className="w-24 h-24 text-muted-foreground" />
+          </div>
         )}
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-primary">{lesson.title}</CardTitle>
