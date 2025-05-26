@@ -1,6 +1,8 @@
+// src/app/(app)/lessons/[topic]/[lessonId]/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link'; // Added Link import
 import { useParams, useRouter } from 'next/navigation';
 import { getLessonById, type Lesson as LessonType } from '@/lib/data';
 import { Button } from '@/components/ui/button';
