@@ -100,6 +100,8 @@ export default function AuthAndOnboardingPage() {
         user = await signInWithGoogle();
       }
       if (user) {
+        // Name and level setting is handled by useEffect or if user is new, by "details" step.
+        // UserContext's signInWithGoogle also attempts to set displayName if available from provider.
         toast({ title: "Sign In Successful", description: `Welcome, ${user.displayName || 'Explorer'}!` });
       }
     } catch (err: any) {
@@ -107,10 +109,17 @@ export default function AuthAndOnboardingPage() {
       if (err.code === 'auth/account-exists-with-different-credential') {
         errorMessage = "An account already exists with this email using a different sign-in method. Try signing in with that method.";
       } else if (err.code === 'auth/popup-closed-by-user') {
-        errorMessage = "Sign-in popup closed. Please try again.";
+        errorMessage = "Sign-in popup was closed. Please ensure popups are not blocked by your browser or extensions and try again.";
       } else if (err.code === 'auth/cancelled-popup-request') {
-        errorMessage = "Multiple sign-in popups opened. Please try again.";
-      } else {
+        errorMessage = "Sign-in attempt was cancelled, possibly due to multiple popups. Please try again.";
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMessage = "Popup was blocked by the browser. Please allow popups for this site and try again.";
+      } else if (err.code === 'auth/operation-not-allowed') {
+        errorMessage = "Google Sign-In is not enabled for this app. Please contact support.";
+      } else if (err.code === 'auth/unauthorized-domain') {
+        errorMessage = "This domain is not authorized for Google Sign-In. Please contact support.";
+      }
+      else {
         errorMessage = err.message || errorMessage;
       }
       setError(errorMessage);
