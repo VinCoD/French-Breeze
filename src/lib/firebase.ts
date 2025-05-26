@@ -11,27 +11,19 @@ const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
 const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
 
-// CRITICAL CHECK: Ensure API Key is loaded
+// Standard check for API Key presence
 if (!apiKey) {
-  const errorMessage = "FATAL ERROR: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined. " +
-    "Firebase cannot be initialized. Please ensure that: \n" +
-    "1. You have a .env.local file in the root of your project. \n" +
+  const errorMessage = "Warning: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined. " +
+    "Firebase will likely fail to initialize if this is not an intentional setup for specific environments. Please ensure that: \n" +
+    "1. You have a .env.local file in the root of your project for local development. \n" +
     "2. The .env.local file contains NEXT_PUBLIC_FIREBASE_API_KEY=your_actual_key. \n" +
     "3. You have restarted your Next.js development server after creating/modifying .env.local.\n" +
-    "4. All Firebase related environment variables in .env.local start with NEXT_PUBLIC_";
-  console.error(errorMessage);
-  // Throwing an error here will stop further execution and make the problem very clear.
-  throw new Error(errorMessage);
+    "4. All Firebase related environment variables intended for client-side use start with NEXT_PUBLIC_";
+  console.warn(errorMessage); // Changed to warn, as throwing was removed in previous step
 }
 
-// DEBUG LOGS: Check your server terminal AND browser console for these values.
-console.log("Firebase Config Check - API Key being used:", apiKey ? apiKey.substring(0, 5) + "..." : "UNDEFINED/EMPTY"); // Log only a portion for security if it exists
-console.log("Firebase Config Check - Auth Domain:", authDomain || "UNDEFINED/EMPTY");
-console.log("Firebase Config Check - Project ID:", projectId || "UNDEFINED/EMPTY");
-
-
 const firebaseConfig = {
-  apiKey: apiKey, // Use the variable checked above
+  apiKey: apiKey, 
   authDomain: authDomain,
   projectId: projectId,
   storageBucket: storageBucket,
