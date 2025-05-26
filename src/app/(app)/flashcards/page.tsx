@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -26,12 +27,12 @@ export default function FlashcardsPage() {
           return (
             <Card key={set.topic} className="flex flex-col overflow-hidden hover:shadow-lg transition-shadow">
               <Image 
-                src={`https://placehold.co/400x200.png`} // Generic placeholder for flashcard sets
+                src={"https://placehold.co/400x200.png"} 
                 alt={`${set.topic} flashcards`} 
                 width={400} 
                 height={200} 
                 className="w-full h-48 object-cover"
-                data-ai-hint={`${set.topic} learning`}
+                data-ai-hint={`${set.topic.toLowerCase()} cards`}
               />
               <CardHeader>
                 <CardTitle className="text-2xl">{set.topic}</CardTitle>

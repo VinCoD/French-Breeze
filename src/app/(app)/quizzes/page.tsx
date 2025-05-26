@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -24,12 +25,12 @@ export default function QuizzesPage() {
         {quizzes.map((quiz) => (
           <Card key={quiz.id} className="flex flex-col overflow-hidden hover:shadow-lg transition-shadow">
             <Image 
-                src={`https://placehold.co/400x200.png`} 
+                src={"https://placehold.co/400x200.png"} 
                 alt={`${quiz.title} quiz`} 
                 width={400} 
                 height={200} 
                 className="w-full h-48 object-cover"
-                data-ai-hint={`${quiz.topic} quiz game`}
+                data-ai-hint={`${quiz.topic.toLowerCase()} quiz`}
               />
             <CardHeader>
               <CardTitle className="text-2xl">{quiz.title}</CardTitle>

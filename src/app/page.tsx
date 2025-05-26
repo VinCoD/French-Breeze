@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image'; // Added Image import
 import { useRouter } from 'next/navigation';
 import { useUser, type FrenchLevel } from '@/context/UserContext';
 import { Button } from '@/components/ui/button';
@@ -100,8 +101,6 @@ export default function AuthAndOnboardingPage() {
         user = await signInWithGoogle();
       }
       if (user) {
-        // Name and level setting is handled by useEffect or if user is new, by "details" step.
-        // UserContext's signInWithGoogle also attempts to set displayName if available from provider.
         toast({ title: "Sign In Successful", description: `Welcome, ${user.displayName || 'Explorer'}!` });
       }
     } catch (err: any) {
@@ -165,10 +164,21 @@ export default function AuthAndOnboardingPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-accent/30">
+      <div className="mb-8">
+        <Image 
+          src="https://placehold.co/300x150.png" 
+          alt="French Breeze Welcome" 
+          width={300} 
+          height={150} 
+          className="rounded-lg shadow-md"
+          data-ai-hint="language learning"
+          priority // Good for LCP on landing page
+        />
+      </div>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center items-center mb-4">
-            <Wind className="h-12 w-12 text-primary" />
+          <div className="flex justify-center items-center mb-2">
+            <Wind className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-3xl font-bold text-primary">
             {onboardingStep === "auth" ? "Welcome to French Breeze!" : "Complete Your Profile"}
@@ -275,5 +285,3 @@ export default function AuthAndOnboardingPage() {
     </div>
   );
 }
-
-    
