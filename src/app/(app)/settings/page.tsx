@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser, type FrenchLevel } from '@/context/UserContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,28 +10,49 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useToast } from '@/hooks/use-toast';
-import { Settings as SettingsIcon, UserCircle, Palette } from 'lucide-react';
+import { Settings as SettingsIcon, UserCircle, Palette, Mail } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { userName, setUserName, level, setLevel } = useUser();
+  const { firebaseUser, userName, setUserName, level, setLevel } = useUser();
   const { toast } = useToast();
   
   const [currentName, setCurrentName] = useState(userName || "");
   const [currentLevel, setCurrentLevel] = useState<FrenchLevel>(level);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSaveChanges = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (userName) setCurrentName(userName);
+    if (level) setCurrentLevel(level);
+  }, [userName, level]);
+
+  const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentName.trim()) {
-      setUserName(currentName.trim());
+    setIsSubmitting(true);
+    let nameChanged = false;
+    let levelChanged = false;
+
+    if (currentName.trim() && currentName.trim() !== userName) {
+      await setUserName(currentName.trim(), true); // true to update Firebase profile
+      nameChanged = true;
     }
-    if (currentLevel) {
+    if (currentLevel && currentLevel !== level) {
       setLevel(currentLevel);
+      levelChanged = true;
     }
-    toast({
-      title: "Settings Saved",
-      description: "Your preferences have been updated.",
-      className: "bg-green-100 dark:bg-green-900 border-green-500"
-    });
+
+    if (nameChanged || levelChanged) {
+      toast({
+        title: "Settings Saved",
+        description: "Your preferences have been updated.",
+        className: "bg-green-100 dark:bg-green-900 border-green-500"
+      });
+    } else {
+       toast({
+        title: "No Changes",
+        description: "Your preferences are already up to date.",
+      });
+    }
+    setIsSubmitting(false);
   };
 
   return (
@@ -49,6 +71,18 @@ export default function SettingsPage() {
             <CardDescription>Manage your account details.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {firebaseUser?.email && (
+                 <div className="space-y-2">
+                    <Label htmlFor="email" className="font-medium flex items-center"><Mail className="mr-2 h-4 w-4 text-muted-foreground"/> Email</Label>
+                    <Input
+                        id="email"
+                        type="email"
+                        value={firebaseUser.email}
+                        disabled
+                        className="bg-muted/50"
+                    />
+                </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name" className="font-medium">Your Name</Label>
               <Input
@@ -75,7 +109,9 @@ export default function SettingsPage() {
                 ))}
               </RadioGroup>
             </div>
-            <Button type="submit" className="w-full sm:w-auto">Save Changes</Button>
+            <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
           </CardContent>
         </Card>
       </form>

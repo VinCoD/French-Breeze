@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect } from 'react';
@@ -45,6 +46,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { lessonTopics, lessons } from '@/lib/data';
+import { useToast } from "@/hooks/use-toast";
+
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -55,7 +58,6 @@ const navItems = [
 
 const AppSidebar = () => {
   const pathname = usePathname();
-  const { level, userName } = useUser();
   const { open } = useSidebar();
 
   const topicSubNavItems = lessonTopics.map(topic => ({
@@ -118,30 +120,46 @@ const AppSidebar = () => {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { level, setLevel, userName, setUserName } = useUser();
+  const { firebaseUser, loadingAuth, userName, level, signOut: contextSignOut } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (!level || !userName) {
-      router.push('/'); // Redirect to onboarding if level or name is not set
+    if (!loadingAuth) {
+      if (!firebaseUser) {
+        router.push('/'); // Redirect to login/signup if no Firebase user
+      } else if (!userName || !level) {
+        // If Firebase user exists but profile (name/level) is not complete
+        // This might happen if they close tab during onboarding details step
+        // Or if data wasn't loaded correctly into context yet from localStorage/Firestore
+        // For now, we assume page.tsx handles the onboarding "details" step if needed.
+        // If they land here directly, they might need to be pushed back to onboarding "details"
+        // or settings page to complete their profile.
+        // A simple solution: if they are on a page other than settings, and details are missing, push to settings.
+        // Or rely on page.tsx's logic to redirect to /dashboard once details are filled.
+        // If they somehow bypass page.tsx to an (app) route without details, dashboard will prompt,
+        // or settings page is where they can fill it.
+        // For this iteration, if firebaseUser is present but userName/level are missing,
+        // we assume UserContext might still be syncing or page.tsx is handling it.
+        // The main protection is !firebaseUser -> redirect to '/'
+      }
     }
-  }, [level, userName, router]);
+  }, [firebaseUser, loadingAuth, userName, level, router]);
 
-  const handleLogout = () => {
-    setLevel(null);
-    setUserName(null);
-    localStorage.removeItem("frenchBreezeLevel");
-    localStorage.removeItem("frenchBreezeUserName");
-    localStorage.removeItem("frenchBreezeProgress");
-    localStorage.removeItem("frenchBreezeStreak");
-    localStorage.removeItem("frenchBreezeLastVisit");
-    router.push('/');
+  const handleLogout = async () => {
+    try {
+      await contextSignOut();
+      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      // router.push('/'); // onAuthStateChanged in UserContext will trigger redirect via useEffect above
+    } catch (error) {
+        toast({ variant: "destructive", title: "Logout Error", description: "Failed to log out." });
+    }
   };
   
-  if (!level || !userName) {
-     // Still loading or redirecting, show minimal UI or loader
+  if (loadingAuth || !firebaseUser) {
+     // Show loader while checking auth or if no user (and redirecting)
     return (
-        <div className="flex min-h-screen items-center justify-center">
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-accent/30">
             <Wind className="h-12 w-12 animate-spin text-primary" />
         </div>
     );
@@ -166,15 +184,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={`https://placehold.co/40x40.png?text=${userName?.charAt(0).toUpperCase()}`} alt={userName || "User"} data-ai-hint="profile avatar" />
-                    <AvatarFallback>{userName?.charAt(0).toUpperCase()}</AvatarFallback>
+                    <AvatarImage 
+                      src={firebaseUser.photoURL || `https://placehold.co/40x40.png?text=${userName?.charAt(0).toUpperCase() || 'U'}`} 
+                      alt={userName || firebaseUser.email || "User"} 
+                      data-ai-hint="profile avatar" />
+                    <AvatarFallback>{userName?.charAt(0).toUpperCase() || firebaseUser.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">{userName}</span>
+                  <span className="hidden sm:inline">{userName || firebaseUser.email}</span>
                   <ChevronDown className="h-4 w-4 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>My Account ({level || 'N/A'})</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/settings">
@@ -198,3 +219,4 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+

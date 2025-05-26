@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -11,16 +12,39 @@ import { ArrowRight, BookMarked, CalendarDays, Zap } from 'lucide-react';
 import Image from 'next/image';
 
 export default function DashboardPage() {
-  const { userName, level, progress, dailyStreak, incrementStreak } = useUser();
+  const { firebaseUser, userName, level, progress, dailyStreak, incrementStreak } = useUser();
 
   React.useEffect(() => {
-    // Try to increment streak on dashboard load
-    incrementStreak();
-  }, [incrementStreak]);
+    // Try to increment streak on dashboard load if a user is logged in
+    if (firebaseUser) {
+      incrementStreak();
+    }
+  }, [incrementStreak, firebaseUser]);
 
   const completedLessonsCount = Object.values(progress).filter(Boolean).length;
   const totalLessonsCount = lessons.length;
   const overallProgress = totalLessonsCount > 0 ? (completedLessonsCount / totalLessonsCount) * 100 : 0;
+
+  // If userName or level is not yet available (e.g. still completing onboarding), show a message or limited view.
+  // This check might be redundant if AppLayout/page.tsx fully handle redirection.
+  if (!userName || !level) {
+    return (
+      <div className="text-center py-10">
+        <Card className="max-w-lg mx-auto">
+          <CardHeader>
+            <CardTitle>Welcome to French Breeze!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">Please complete your profile to see your dashboard.</p>
+            <Button asChild>
+              <Link href="/settings">Go to Settings</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-8">
