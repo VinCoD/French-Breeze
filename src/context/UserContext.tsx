@@ -9,9 +9,12 @@ import {
   signInWithEmailAndPassword, 
   onAuthStateChanged, 
   signOut as firebaseSignOut,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider, // Added
+  FacebookAuthProvider, // Added
+  signInWithPopup // Added
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase'; // Assuming firebase.ts is in src/lib
+import { auth } from '@/lib/firebase'; 
 
 export type FrenchLevel = "Beginner" | "Intermediate" | "Advanced" | null;
 
@@ -29,6 +32,8 @@ interface UserContextType {
   resetStreak: () => void;
   signUpWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithEmail: (email: string, password: string) => Promise<User | null>;
+  signInWithGoogle: () => Promise<User | null>; // Added
+  signInWithFacebook: () => Promise<User | null>; // Added
   signOut: () => Promise<void>;
 }
 
@@ -48,13 +53,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setFirebaseUser(user);
       setLoadingAuth(false);
       if (user) {
-        // User is signed in, load their specific data from localStorage
-        // (Later, this will be from Firestore)
         const storedLevel = localStorage.getItem(`frenchBreezeLevel_${user.uid}`) as FrenchLevel;
         if (storedLevel) setLevelState(storedLevel); else setLevelState(null);
         
-        const storedName = user.displayName || localStorage.getItem(`frenchBreezeUserName_${user.uid}`);
-        if (storedName) setUserNameState(storedName); else setUserNameState(null);
+        let currentName = user.displayName; // Prefer Firebase profile name first
+        if (!currentName) { // If not on Firebase profile, check local storage
+            currentName = localStorage.getItem(`frenchBreezeUserName_${user.uid}`);
+        }
+        if (currentName) {
+            setUserNameState(currentName);
+            // Ensure localStorage is consistent if Firebase displayName was used
+            if (user.displayName && localStorage.getItem(`frenchBreezeUserName_${user.uid}`) !== user.displayName) {
+                 localStorage.setItem(`frenchBreezeUserName_${user.uid}`, user.displayName);
+            }
+        } else {
+            setUserNameState(null);
+        }
+
 
         const storedProgress = localStorage.getItem(`frenchBreezeProgress_${user.uid}`);
         if (storedProgress) setProgressState(JSON.parse(storedProgress)); else setProgressState({});
@@ -68,13 +83,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           const lastVisitDate = new Date(lastVisit).toDateString();
           const yesterday = new Date(Date.now() - 86400000).toDateString();
           if (lastVisitDate !== today && lastVisitDate !== yesterday) {
-            resetStreakInternal(user.uid); // Reset if missed more than a day
+            resetStreakInternal(user.uid); 
           }
         } else {
           localStorage.setItem(`frenchBreezeLastVisit_${user.uid}`, today);
         }
       } else {
-        // User is signed out, clear local user-specific data
         setLevelState(null);
         setUserNameState(null);
         setProgressState({});
@@ -93,18 +107,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const setUserName = async (newName: string | null, updateUserProfile: boolean = true) => {
+  const setUserName = async (newName: string | null, updateUserProfileFlag: boolean = true) => {
     setUserNameState(newName);
     if (firebaseUser) {
       if (newName) {
         localStorage.setItem(`frenchBreezeUserName_${firebaseUser.uid}`, newName);
-        if (updateUserProfile && auth.currentUser && auth.currentUser.displayName !== newName) {
+        if (updateUserProfileFlag && auth.currentUser && auth.currentUser.displayName !== newName) {
           try {
             await updateProfile(auth.currentUser, { displayName: newName });
-            // Refresh firebaseUser state if needed, or rely on onAuthStateChanged
             setFirebaseUser(auth.currentUser); 
           } catch (error) {
             console.error("Error updating Firebase profile name:", error);
+            // Potentially re-throw or handle in UI
           }
         }
       } else {
@@ -152,31 +166,56 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // setFirebaseUser(userCredential.user) // Handled by onAuthStateChanged
       return userCredential.user;
     } catch (error) {
       console.error("Error signing up:", error);
-      // Handle specific error codes (e.g., email-already-in-use) here if needed
-      throw error; // Re-throw to be caught by the caller
+      throw error; 
     }
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // setFirebaseUser(userCredential.user) // Handled by onAuthStateChanged
       return userCredential.user;
     } catch (error) {
       console.error("Error signing in:", error);
-      // Handle specific error codes (e.g., user-not-found, wrong-password) here
-      throw error; // Re-throw
+      throw error; 
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<User | null> => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      // onAuthStateChanged will update firebaseUser.
+      // If user has displayName from Google, context useEffect will pick it up.
+      return result.user;
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      throw error; 
+    }
+  };
+
+  const signInWithFacebook = async (): Promise<User | null> => {
+    const provider = new FacebookAuthProvider();
+    // Optional: Add scopes if needed, e.g., to get email
+    // provider.addScope('email');
+    // provider.setCustomParameters({
+    //   'display': 'popup'
+    // });
+    try {
+      const result = await signInWithPopup(auth, provider);
+      // onAuthStateChanged will update firebaseUser.
+      return result.user;
+    } catch (error) {
+      console.error("Error signing in with Facebook:", error);
+      throw error; 
     }
   };
 
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
-      // Clearing of states (firebaseUser, level, userName etc.) is handled by onAuthStateChanged
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -189,7 +228,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       userName, setUserName, 
       progress, updateProgress, 
       dailyStreak, incrementStreak, resetStreak,
-      signUpWithEmail, signInWithEmail, signOut
+      signUpWithEmail, signInWithEmail, 
+      signInWithGoogle, signInWithFacebook, 
+      signOut
     }}>
       {children}
     </UserContext.Provider>
@@ -203,3 +244,4 @@ export const useUser = () => {
   }
   return context;
 };
+
