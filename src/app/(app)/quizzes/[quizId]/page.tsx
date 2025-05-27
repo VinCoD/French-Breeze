@@ -1,7 +1,9 @@
+
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { getQuizById, type Quiz, type MultipleChoiceQuestion, type FillInTheBlankQuestion } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, Check, X, Volume2 } from 'lucide-react';
+import { ArrowLeft, Check, X, Volume2, Award, RefreshCw } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { generateAudioAction } from '@/app/actions';
 import { useUser } from '@/context/UserContext';
@@ -17,9 +19,10 @@ import { useUser } from '@/context/UserContext';
 export default function QuizTakingPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams(); // For potential future use if navigating back with state
   const { toast } = useToast();
   const quizId = params.quizId as string;
-  const { incrementStreak } = useUser();
+  const { incrementStreak, userName, firebaseUser } = useUser();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -31,16 +34,25 @@ export default function QuizTakingPage() {
   const [quizFinished, setQuizFinished] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
 
-  useEffect(() => {
+  const initializeQuizState = useCallback(() => {
     if (quizId) {
       const foundQuiz = getQuizById(quizId);
       setQuiz(foundQuiz || null);
       if (foundQuiz) {
         setUserAnswers(Array(foundQuiz.questions.length).fill(''));
         setShowResult(Array(foundQuiz.questions.length).fill(false));
+        setCurrentQuestionIndex(0);
+        setScore(0);
+        setQuizFinished(false);
+        setSelectedOption('');
+        setFillInBlankAnswer('');
       }
     }
   }, [quizId]);
+
+  useEffect(() => {
+    initializeQuizState();
+  }, [initializeQuizState]);
 
   const currentQuestion = quiz?.questions[currentQuestionIndex];
 
@@ -114,14 +126,20 @@ export default function QuizTakingPage() {
   };
 
   const handleNextQuestion = () => {
-    if (currentQuestionIndex < quiz!.questions.length - 1) {
+    if (quiz && currentQuestionIndex < quiz.questions.length - 1) {
       setCurrentQuestionIndex(prevIndex => prevIndex + 1);
       setSelectedOption('');
       setFillInBlankAnswer('');
     } else {
       setQuizFinished(true);
-      incrementStreak(); // Increment streak on quiz completion
+      if (firebaseUser) { // Only increment streak if user is logged in
+        incrementStreak(); 
+      }
     }
+  };
+
+  const handleRetakeQuiz = () => {
+    initializeQuizState();
   };
 
   if (!quiz) {
@@ -130,23 +148,44 @@ export default function QuizTakingPage() {
 
   if (quizFinished) {
     const percentage = Math.round((score / quiz.questions.length) * 100);
+    const passed = percentage >= 60;
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD for easier parsing later
+
     return (
       <Card className="w-full max-w-lg mx-auto text-center shadow-xl">
         <CardHeader>
-          <CardTitle className="text-3xl text-primary">Quiz Completed!</CardTitle>
+          <CardTitle className="text-3xl text-primary">Quiz Completed: {quiz.title}</CardTitle>
           <CardDescription>You scored {score} out of {quiz.questions.length} ({percentage}%)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className={percentage >= 70 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
-            {percentage >= 70 ? "Excellent work! 🎉" : "Good effort! Keep practicing. 💪"}
-          </p>
-          <Button onClick={() => router.push('/quizzes')} className="w-full">Back to Quizzes</Button>
+          {passed ? (
+            <>
+              <p className="text-green-600 font-semibold text-lg">Excellent work! 🎉 You passed!</p>
+              <Button asChild className="w-full">
+                <Link href={`/certificate/${quiz.id}?userName=${encodeURIComponent(userName || 'Learner')}&quizTitle=${encodeURIComponent(quiz.title)}&score=${percentage}&date=${today}`}>
+                  <Award className="mr-2 h-5 w-5" /> View Certificate
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <p className="text-red-600 font-semibold text-lg">
+              Good effort! You need 60% or higher to earn a certificate. Please try again. 💪
+            </p>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button onClick={handleRetakeQuiz} variant="outline" className="w-full sm:w-auto">
+              <RefreshCw className="mr-2 h-4 w-4" /> Retake Quiz
+            </Button>
+            <Button onClick={() => router.push('/quizzes')} className="w-full sm:w-auto">
+              Back to Quizzes
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
-  const progressPercentage = ((currentQuestionIndex + 1) / quiz.questions.length) * 100;
+  const progressPercentage = quiz ? ((currentQuestionIndex + 1) / quiz.questions.length) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -225,7 +264,7 @@ export default function QuizTakingPage() {
             </Button>
           ) : (
             <Button onClick={handleNextQuestion} className="w-full">
-              {currentQuestionIndex < quiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+              {quiz && currentQuestionIndex < quiz.questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
             </Button>
           )}
         </CardContent>
@@ -234,3 +273,5 @@ export default function QuizTakingPage() {
     </div>
   );
 }
+
+    
