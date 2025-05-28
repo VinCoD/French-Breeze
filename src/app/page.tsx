@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-// Removed Image import as it's no longer used for the logo here
 import { useRouter } from 'next/navigation';
 import { useUser, type FrenchLevel } from '@/context/UserContext';
 import { Button } from '@/components/ui/button';
@@ -43,18 +42,46 @@ export default function AuthAndOnboardingPage() {
   const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-
+  // Effect to handle routing or step changes based on auth and profile status
   useEffect(() => {
-    if (!loadingAuth && firebaseUser) {
+    if (loadingAuth) {
+      return; // Wait for auth to resolve
+    }
+
+    if (firebaseUser) {
+      // User is logged in
       if (contextUserName && contextLevel) {
-        router.push('/dashboard');
+        // Profile is complete, navigate to dashboard
+        if (router.pathname !== '/dashboard') { // Avoid redundant pushes
+            router.push('/dashboard');
+        }
       } else {
-        setOnboardingStep("details");
-        setNameInput(firebaseUser.displayName || contextUserName || "");
-        if (contextLevel) setSelectedLevel(contextLevel);
+        // Profile is incomplete, ensure we are on the "details" step
+        setOnboardingStep((currentOnboardingStep) => {
+          if (currentOnboardingStep !== "details") {
+            // This block runs only when transitioning TO "details"
+            // Pre-fill nameInput using functional update to only set if empty,
+            // prioritizing contextUserName (from Firestore/auth) then firebaseUser.displayName.
+            setNameInput(currentLocalName => currentLocalName || contextUserName || firebaseUser.displayName || "");
+            
+            // Pre-fill selectedLevel if contextLevel exists and selectedLevel isn't already set (or is default)
+            if (contextLevel) {
+              setSelectedLevel(currentLocalLevel => currentLocalLevel === 'Beginner' || !currentLocalLevel ? contextLevel : currentLocalLevel);
+            } else {
+                // If contextLevel is not set, ensure local selectedLevel is at its default
+                 setSelectedLevel(currentLocalLevel => currentLocalLevel || "Beginner");
+            }
+          }
+          return "details";
+        });
       }
-    } else if (!loadingAuth && !firebaseUser) {
+    } else {
+      // No user is authenticated, ensure we are on the "auth" step
       setOnboardingStep("auth");
+      // Reset form fields when going to auth step or if user becomes null
+      setNameInput("");
+      setSelectedLevel("Beginner");
+      setError(null); // Clear any previous errors
     }
   }, [firebaseUser, loadingAuth, contextUserName, contextLevel, router]);
 
@@ -82,7 +109,7 @@ export default function AuthAndOnboardingPage() {
 
       if (user) {
         toast({ title: authMode === "signup" ? "Sign Up Successful" : "Sign In Successful", description: "Welcome to French Breeze!" });
-        // Name and level will be prompted if not set, handled by useEffect
+        // useEffect will handle navigation or step change based on profile completeness
       }
     } catch (err: any) {
       const errorMessage = err.message || "Authentication failed. Please try again.";
@@ -103,16 +130,14 @@ export default function AuthAndOnboardingPage() {
       }
       if (user) {
         toast({ title: "Sign In Successful", description: `Welcome, ${user.displayName || 'Explorer'}!` });
-        // Name and level will be prompted if not set, handled by useEffect
+        // useEffect will handle navigation or step change based on profile completeness
       }
     } catch (err: any) {
       let errorMessage = "Social sign-in failed. Please try again.";
       if (err.code === 'auth/account-exists-with-different-credential') {
         errorMessage = "An account already exists with this email using a different sign-in method. Try signing in with that method.";
-      } else if (err.code === 'auth/popup-closed-by-user') {
+      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
         errorMessage = "Sign-in popup was closed. Please ensure popups are not blocked by your browser or extensions and try again.";
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        errorMessage = "Sign-in attempt was cancelled, possibly due to multiple popups. Please try again.";
       } else if (err.code === 'auth/popup-blocked') {
         errorMessage = "Popup was blocked by the browser. Please allow popups for this site and try again.";
       } else if (err.code === 'auth/operation-not-allowed') {
@@ -136,10 +161,15 @@ export default function AuthAndOnboardingPage() {
     if (nameInput.trim() && selectedLevel) {
       setIsSubmitting(true);
       try {
-        await setUserName(nameInput.trim(), true);
-        setLevel(selectedLevel);
+        // Update context (which updates Firestore)
+        // The 'true' flag for setUserName also updates Firebase Auth user profile displayName
+        await setUserName(nameInput.trim(), true); 
+        await setLevel(selectedLevel);
+        
         toast({ title: "Profile Updated", description: "Your details have been saved."});
-        router.push('/dashboard');
+        // Navigation to dashboard will be handled by the main useEffect 
+        // once contextUserName and contextLevel are updated.
+        // router.push('/dashboard'); // Can be removed if useEffect handles it robustly
       } catch (err: any) {
         const errorMessage = "Failed to save details: " + (err.message || "Unknown error");
         setError(errorMessage);
@@ -155,6 +185,9 @@ export default function AuthAndOnboardingPage() {
   };
 
   if (loadingAuth || (firebaseUser && onboardingStep === "auth" && (!contextUserName || !contextLevel))) {
+     // Show loading spinner if auth is loading OR 
+     // if user is logged in but their profile info (userName, level) isn't loaded into context yet,
+     // and we are still on the 'auth' step (meaning useEffect hasn't switched to 'details' or dashboard yet).
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-accent/30">
         <Wind className="h-16 w-16 text-primary mb-4 animate-spin" />
@@ -174,7 +207,6 @@ export default function AuthAndOnboardingPage() {
       </div>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          {/* Icon moved to above the card for more prominence */}
           <CardTitle className="text-3xl font-bold text-primary">
             {onboardingStep === "auth" ? "Welcome to French Breeze!" : "Complete Your Profile"}
           </CardTitle>
@@ -254,7 +286,7 @@ export default function AuthAndOnboardingPage() {
               <div className="space-y-2">
                 <Label className="text-lg font-medium">Choose your French level:</Label>
                 <RadioGroup
-                  value={selectedLevel || "Beginner"}
+                  value={selectedLevel || "Beginner"} // Ensure value is never null for RadioGroup
                   onValueChange={(value: FrenchLevel) => setSelectedLevel(value)}
                   className="space-y-2 pt-2"
                 >
@@ -280,3 +312,4 @@ export default function AuthAndOnboardingPage() {
     </div>
   );
 }
+
