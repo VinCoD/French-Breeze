@@ -13,8 +13,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup,
 } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase'; 
-import { doc, setDoc, getDoc, onSnapshot, Timestamp, type DocumentData } from 'firebase/firestore';
+import { auth } from '@/lib/firebase'; 
 
 export type FrenchLevel = "Beginner" | "Intermediate" | "Advanced" | null;
 
@@ -22,14 +21,14 @@ interface UserContextType {
   firebaseUser: User | null;
   loadingAuth: boolean;
   level: FrenchLevel;
-  setLevel: (level: FrenchLevel) => void;
+  setLevel: (level: FrenchLevel) => void; 
   userName: string | null;
-  setUserName: (name: string | null, updateUserProfile?: boolean) => Promise<void>;
+  setUserName: (name: string | null, updateUserProfile?: boolean) => Promise<void>; 
   progress: { [lessonId: string]: boolean };
-  updateProgress: (lessonId: string, completed: boolean) => void;
+  updateProgress: (lessonId: string, completed: boolean) => void; 
   dailyStreak: number;
-  incrementStreak: () => void;
-  resetStreak: () => void;
+  incrementStreak: () => void; 
+  resetStreak: () => void; 
   signUpWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithGoogle: () => Promise<User | null>; 
@@ -37,8 +36,6 @@ interface UserContextType {
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
-
-const USERS_COLLECTION = 'users';
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -49,8 +46,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [progress, setProgressState] = useState<{ [lessonId: string]: boolean }>({});
   const [dailyStreak, setDailyStreakState] = useState<number>(0);
   
-  const [firestoreUnsubscribe, setFirestoreUnsubscribe] = useState<(() => void) | null>(null);
-
   const clearLocalUserData = useCallback(() => {
     setLevelState(null);
     setUserNameState(null);
@@ -62,73 +57,48 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem(`frenchBreezeProgress_${firebaseUser.uid}`);
         localStorage.removeItem(`frenchBreezeStreak_${firebaseUser.uid}`);
         localStorage.removeItem(`frenchBreezeLastVisit_${firebaseUser.uid}`);
+    } else { 
+        localStorage.removeItem('frenchBreezeLevel');
+        localStorage.removeItem('frenchBreezeUserName');
+        localStorage.removeItem('frenchBreezeProgress');
+        localStorage.removeItem('frenchBreezeStreak');
+        localStorage.removeItem('frenchBreezeLastVisit');
     }
   }, [firebaseUser?.uid]);
 
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       
-      if (firestoreUnsubscribe) {
-        firestoreUnsubscribe(); 
-        setFirestoreUnsubscribe(null);
-      }
-
       if (user) {
-        const userDocRef = doc(db, USERS_COLLECTION, user.uid);
+        const storedName = localStorage.getItem(`frenchBreezeUserName_${user.uid}`);
+        const storedLevel = localStorage.getItem(`frenchBreezeLevel_${user.uid}`) as FrenchLevel;
+        const storedProgress = JSON.parse(localStorage.getItem(`frenchBreezeProgress_${user.uid}`) || '{}');
+        const storedStreak = parseInt(localStorage.getItem(`frenchBreezeStreak_${user.uid}`) || '0', 10);
+        const storedLastVisit = localStorage.getItem(`frenchBreezeLastVisit_${user.uid}`);
 
-        // Make this onSnapshot callback async
-        const unsub = onSnapshot(userDocRef, async (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as DocumentData;
-            setUserNameState(data.name || user.displayName || null);
-            setLevelState(data.level || null);
-            setProgressState(data.progress || {});
-            setDailyStreakState(data.dailyStreak || 0);
-
-            localStorage.setItem(`frenchBreezeUserName_${user.uid}`, data.name || user.displayName || "");
-            if(data.level) localStorage.setItem(`frenchBreezeLevel_${user.uid}`, data.level); else localStorage.removeItem(`frenchBreezeLevel_${user.uid}`);
-            localStorage.setItem(`frenchBreezeProgress_${user.uid}`, JSON.stringify(data.progress || {}));
-            localStorage.setItem(`frenchBreezeStreak_${user.uid}`, (data.dailyStreak || 0).toString());
-            
-            const today = new Date().toDateString();
-            const lastLoginFirestore = data.lastLoginDate instanceof Timestamp 
-                ? data.lastLoginDate.toDate().toDateString() 
-                : (typeof data.lastLoginDate === 'string' ? new Date(data.lastLoginDate).toDateString() : null);
-
-            if (lastLoginFirestore) {
-              const yesterday = new Date(Date.now() - 86400000).toDateString();
-              if (lastLoginFirestore !== today && lastLoginFirestore !== yesterday) {
-                 setDoc(userDocRef, { dailyStreak: 0, lastLoginDate: Timestamp.fromDate(new Date()) }, { merge: true });
-              }
+        setUserNameState(storedName || user.displayName || null);
+        setLevelState(storedLevel || null);
+        setProgressState(storedProgress);
+        
+        const today = new Date().toDateString();
+        if (storedLastVisit) {
+            if (storedLastVisit !== today) {
+                const yesterday = new Date(Date.now() - 86400000).toDateString();
+                if (storedLastVisit === yesterday) {
+                    setDailyStreakState(storedStreak); 
+                } else {
+                    setDailyStreakState(0);
+                    localStorage.setItem(`frenchBreezeStreak_${user.uid}`, '0');
+                }
             } else {
-              setDoc(userDocRef, { lastLoginDate: Timestamp.fromDate(new Date()) }, { merge: true });
+                 setDailyStreakState(storedStreak); 
             }
-            localStorage.setItem(`frenchBreezeLastVisit_${user.uid}`, today); 
-
-          } else {
-            const localName = localStorage.getItem(`frenchBreezeUserName_${user.uid}`) || user.displayName;
-            const localLevel = localStorage.getItem(`frenchBreezeLevel_${user.uid}`) as FrenchLevel;
-            const localProgressString = localStorage.getItem(`frenchBreezeProgress_${user.uid}`);
-            const localProgress = localProgressString ? JSON.parse(localProgressString) : {};
-            const localStreakString = localStorage.getItem(`frenchBreezeStreak_${user.uid}`);
-            const localStreak = localStreakString ? parseInt(localStreakString, 10) : 0;
-            const localLastVisit = localStorage.getItem(`frenchBreezeLastVisit_${user.uid}`);
-            
-            const initialData = {
-              name: localName || null,
-              email: user.email || null, // Store email on first creation
-              level: localLevel || null,
-              progress: localProgress || {},
-              dailyStreak: localStreak || 0,
-              lastLoginDate: localLastVisit ? Timestamp.fromDate(new Date(localLastVisit)) : Timestamp.fromDate(new Date()),
-              createdAt: Timestamp.fromDate(new Date()),
-            };
-            await setDoc(userDocRef, initialData); // This await is now valid
-          }
-        });
-        setFirestoreUnsubscribe(() => unsub);
+        } else {
+            setDailyStreakState(0);
+            localStorage.setItem(`frenchBreezeStreak_${user.uid}`, '0');
+        }
 
       } else { 
         clearLocalUserData();
@@ -138,23 +108,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       unsubscribeAuth();
-      if (firestoreUnsubscribe) {
-        firestoreUnsubscribe();
-      }
     };
-  }, [clearLocalUserData, firestoreUnsubscribe]); 
+  }, [clearLocalUserData]); 
 
-  const setLevel = async (newLevel: FrenchLevel) => {
+  const setLevel = (newLevel: FrenchLevel) => { 
     setLevelState(newLevel);
     if (firebaseUser) {
       if (newLevel) localStorage.setItem(`frenchBreezeLevel_${firebaseUser.uid}`, newLevel);
       else localStorage.removeItem(`frenchBreezeLevel_${firebaseUser.uid}`);
-      try {
-        const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
-        await setDoc(userDocRef, { level: newLevel }, { merge: true });
-      } catch (error) {
-        console.error("Error saving level to Firestore:", error);
-      }
     }
   };
 
@@ -164,92 +125,48 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       if (newName) localStorage.setItem(`frenchBreezeUserName_${firebaseUser.uid}`, newName);
       else localStorage.removeItem(`frenchBreezeUserName_${firebaseUser.uid}`);
       
-      const tasks = [];
       if (updateUserProfileFlag && auth.currentUser && auth.currentUser.displayName !== newName) {
-        tasks.push(updateProfile(auth.currentUser, { displayName: newName }));
-      }
-      const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
-      tasks.push(setDoc(userDocRef, { name: newName }, { merge: true }));
-
-      try {
-        await Promise.all(tasks);
-        if (updateUserProfileFlag && auth.currentUser) {
-            // Create a new user object to trigger re-render if needed, though onAuthStateChanged should handle most cases
-            const refreshedUser = {...auth.currentUser};
-            setFirebaseUser(refreshedUser); 
+        try {
+          await updateProfile(auth.currentUser, { displayName: newName });
+          const refreshedUser = {...auth.currentUser}; 
+          setFirebaseUser(refreshedUser);
+        } catch (error) {
+          console.error("Error updating Firebase profile name:", error);
+          throw error;
         }
-      } catch (error) {
-        console.error("Error saving name:", error);
-        // Re-throw or handle more gracefully if needed
-        throw error;
       }
     }
   };
 
-  const updateProgress = async (lessonId: string, completed: boolean) => {
+  const updateProgress = (lessonId: string, completed: boolean) => { 
     if (!firebaseUser) return;
     const newProgress = { ...progress, [lessonId]: completed };
     setProgressState(newProgress);
     localStorage.setItem(`frenchBreezeProgress_${firebaseUser.uid}`, JSON.stringify(newProgress));
-    try {
-      const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
-      await setDoc(userDocRef, { progress: newProgress }, { merge: true });
-    } catch (error) {
-      console.error("Error saving progress to Firestore:", error);
-    }
   };
 
-  const incrementStreak = async () => {
+  const incrementStreak = () => { 
     if (!firebaseUser) return;
     const todayString = new Date().toDateString();
-    
-    const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
-    try {
-      const docSnap = await getDoc(userDocRef);
-      let currentStreak = 0;
-      let lastLoginDateString = null;
+    const lastVisit = localStorage.getItem(`frenchBreezeLastVisit_${firebaseUser.uid}`);
 
-      if(docSnap.exists()){
-          const data = docSnap.data();
-          currentStreak = data.dailyStreak || 0;
-          if(data.lastLoginDate instanceof Timestamp){
-              lastLoginDateString = data.lastLoginDate.toDate().toDateString();
-          } else if (typeof data.lastLoginDate === 'string') {
-              lastLoginDateString = new Date(data.lastLoginDate).toDateString();
-          }
-      }
-      
-      if (lastLoginDateString !== todayString) {
-        const newStreak = currentStreak + 1;
-        // setDailyStreakState(newStreak); // State update will come from onSnapshot
-        // localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, newStreak.toString());
-        // localStorage.setItem(`frenchBreezeLastVisit_${firebaseUser.uid}`, todayString);
-        await setDoc(userDocRef, { 
-          dailyStreak: newStreak, 
-          lastLoginDate: Timestamp.fromDate(new Date()) 
-        }, { merge: true });
-      }
-    } catch (error) {
-       console.error("Error incrementing streak in Firestore:", error);
+    if (lastVisit !== todayString) {
+        const newStreak = dailyStreak + 1;
+        setDailyStreakState(newStreak);
+        localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, newStreak.toString());
+        localStorage.setItem(`frenchBreezeLastVisit_${firebaseUser.uid}`, todayString);
     }
   };
   
-  const resetStreak = async () => {
+  const resetStreak = () => { 
     if (!firebaseUser) return;
-    // setDailyStreakState(0); // State update will come from onSnapshot
-    // localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, "0");
-    try {
-      const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
-      await setDoc(userDocRef, { dailyStreak: 0 }, { merge: true });
-    } catch (error) {
-      console.error("Error resetting streak in Firestore:", error);
-    }
+    setDailyStreakState(0);
+    localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, "0");
   };
 
   const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Firestore document creation will be handled by onSnapshot in useEffect
       return userCredential.user;
     } catch (error) {
       console.error("Error signing up:", error);
@@ -271,7 +188,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // Firestore data handling (including initial name set if needed) done by onAuthStateChanged
       return result.user;
     } catch (error) {
       console.error("Error signing in with Google:", error);
@@ -311,3 +227,4 @@ export const useUser = () => {
   return context;
 };
 
+    

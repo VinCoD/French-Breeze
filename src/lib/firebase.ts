@@ -2,7 +2,7 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 // Add other Firebase services like Firestore here as needed
-import { getFirestore, type Firestore } from "firebase/firestore";
+// import { getFirestore, type Firestore } from "firebase/firestore"; // Commented out
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
@@ -43,6 +43,7 @@ if (!getApps().length) {
 }
 
 const auth: Auth = getAuth(app);
-const db: Firestore = getFirestore(app); // Initialize Firestore
+// const db: Firestore = getFirestore(app); // Commented out: Initialize Firestore
 
-export { app, auth, db };
+export { app, auth /*, db */ }; // Commented out db export
+
