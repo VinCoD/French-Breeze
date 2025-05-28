@@ -67,10 +67,6 @@ const AppSidebar = () => {
     label: topic,
   }));
 
-  // The <Sidebar> component from components/ui/sidebar.tsx uses `hidden md:block` on its main div,
-  // so it won't render the desktop-style sidebar on small screens.
-  // It has internal logic to render a Sheet for mobile, triggered by a SidebarTrigger with `md:hidden`.
-  // If `isMobile` is true (meaning we're showing bottom nav), we don't want this mobile sheet trigger.
   return (
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader className="flex items-center justify-between p-2">
@@ -78,7 +74,6 @@ const AppSidebar = () => {
           <Wind className="h-7 w-7 text-primary" />
           {open && <span className="text-xl font-semibold text-primary">French Breeze</span>}
         </Link>
-        {/* This trigger is for the mobile Sheet. Hide it if `isMobile` is true, as BottomNavigation will be used. */}
         {!isMobile && <SidebarTrigger className="md:hidden" />}
       </SidebarHeader>
       <SidebarContent className="p-2">
@@ -127,31 +122,39 @@ const AppSidebar = () => {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { firebaseUser, loadingAuth, userName, level, signOut: contextSignOut } = useUser();
+  const { firebaseUser, loadingAuth, loadingUserData, userName, level, signOut: contextSignOut } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    if (!loadingAuth) {
+    // Wait for both auth and user data to finish loading before making decisions
+    if (!loadingAuth && !loadingUserData) {
       if (!firebaseUser) {
         router.push('/'); 
       } else if (!userName || !level) {
-        // Handled by dashboard page or settings page
+        // If profile details (name/level from Firestore) are missing, 
+        // but user is authenticated, redirect to settings or onboarding page.
+        // For now, let's assume if they reach here without name/level, settings is appropriate.
+        // The main page '/' should handle redirecting to 'details' step if name/level missing right after login.
+        if (router.pathname !== '/settings' && router.pathname !== '/') { // Avoid loop if already on settings or root
+          // router.push('/settings'); // Or could be '/' which then directs to details
+        }
       }
     }
-  }, [firebaseUser, loadingAuth, userName, level, router]);
+  }, [firebaseUser, loadingAuth, loadingUserData, userName, level, router]);
 
   const handleLogout = async () => {
     try {
       await contextSignOut();
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      // router.push('/') is handled by the useEffect above once firebaseUser becomes null
     } catch (error) {
         toast({ variant: "destructive", title: "Logout Error", description: "Failed to log out." });
     }
   };
   
-  if (loadingAuth || !firebaseUser) {
+  if (loadingAuth || loadingUserData || !firebaseUser) { // Added loadingUserData check
     return (
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-accent/30">
             <Wind className="h-12 w-12 animate-spin text-primary" />
@@ -161,24 +164,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      {/* AppSidebar is internally responsive. The component from ui/sidebar is hidden on mobile,
-          and its Sheet version is only triggered if its mobile trigger is present and clicked.
-          By removing/disabling that mobile trigger inside AppSidebar when isMobile=true, 
-          we prevent the sheet while keeping desktop sidebar functionality.
-      */}
       {!isMobile && <AppSidebar />}
       
-      <SidebarInset className={cn(isMobile ? "ml-0 !p-0" : "")}> {/* Ensure full width for inset on mobile */}
+      <SidebarInset className={cn(isMobile ? "ml-0 !p-0" : "")}> 
         <header className={cn(
           "sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md sm:px-6",
-          isMobile && "fixed w-full" // Make header fixed on mobile for consistency if content scrolls under it
+          isMobile && "fixed w-full" 
         )}>
           <div className="flex items-center gap-2">
-             {/* This trigger is for desktop sidebar collapsing behavior */}
              {!isMobile && <SidebarTrigger className="hidden md:flex" />}
-             {/* If we still wanted a hamburger for a *different* mobile drawer (e.g. secondary actions), it could go here
-                 but for now, bottom nav handles primary, avatar handles account.
-             */}
           </div>
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" aria-label="Notifications">
@@ -219,7 +213,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main className={cn(
           "flex-1 p-4 sm:p-6",
-          isMobile ? "pt-16 pb-20" : "" // pt-16 for fixed header, pb-20 for fixed bottom nav
+          isMobile ? "pt-16 pb-20" : "" 
         )}>
           {children}
         </main>

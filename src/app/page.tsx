@@ -15,12 +15,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from '@/components/ui/separator';
 
 type AuthMode = "signin" | "signup";
-type OnboardingStep = "auth" | "details" | "loading"; // Added 'loading' state
+type OnboardingStep = "auth" | "details" | "loading"; 
 
 export default function AuthAndOnboardingPage() {
   const router = useRouter();
   const {
-    firebaseUser, loadingAuth,
+    firebaseUser, loadingAuth, loadingUserData,
     level: contextLevel, setLevel,
     userName: contextUserName, setUserName,
     signUpWithEmail, signInWithEmail,
@@ -44,50 +44,44 @@ export default function AuthAndOnboardingPage() {
 
   // Effect 1: Determine onboarding step or navigate
   useEffect(() => {
-    if (loadingAuth) {
+    if (loadingAuth || loadingUserData) { // Check both loading flags
       setOnboardingStep("loading");
       return;
     }
 
     if (firebaseUser) {
       if (contextUserName && contextLevel) {
-        // Profile is complete
         if (router.pathname !== '/dashboard' && router.pathname !== '/settings') {
           router.push('/dashboard');
         } else {
-          // If already on dashboard/settings, or navigation is blocked, ensure step is not 'loading'
-          // This might happen if navigating back to this page while logged in.
-          setOnboardingStep("auth"); // Or some other stable state if already on dashboard
+          setOnboardingStep("auth"); 
         }
       } else {
-        // Profile incomplete
         setOnboardingStep("details");
       }
     } else {
-      // No user
       setOnboardingStep("auth");
-      setError(null); // Clear errors when logged out / no user
+      setError(null); 
     }
-  }, [firebaseUser, loadingAuth, contextUserName, contextLevel, router]);
+  }, [firebaseUser, loadingAuth, loadingUserData, contextUserName, contextLevel, router]);
 
   // Effect 2: Pre-fill form fields when on 'details' step or context changes
-  useEffect(() => {
+   useEffect(() => {
     if (onboardingStep === "details") {
-      if (firebaseUser) {
-        setNameInput(prevName => {
-          if (prevName === "" && (contextUserName || firebaseUser.displayName)) {
-            return contextUserName || firebaseUser.displayName || "";
-          }
-          return prevName;
-        });
+      if (contextUserName) {
+        setNameInput(contextUserName);
+      } else if (firebaseUser?.displayName && nameInput === "") {
+         // Only set from firebaseUser.displayName if nameInput is currently empty
+         // to avoid overwriting user's typing if context updates mid-typing.
+        setNameInput(firebaseUser.displayName);
       }
       setSelectedLevel(contextLevel || "Beginner");
     } else if (onboardingStep === "auth") {
-      // Reset form fields when not on details step (e.g. logged out)
-      setNameInput("");
-      setSelectedLevel("Beginner");
+      // Reset form fields if navigating away from details or logging out
+      // setNameInput(""); // Keep potentially entered name if user flips between signin/signup
+      // setSelectedLevel("Beginner"); // Keep potentially selected level
     }
-  }, [onboardingStep, firebaseUser, contextUserName, contextLevel]);
+  }, [onboardingStep, firebaseUser, contextUserName, contextLevel, nameInput]); // Added nameInput to deps for displayName logic
 
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -109,8 +103,8 @@ export default function AuthAndOnboardingPage() {
       } else {
         await signInWithEmail(email, password);
       }
-      // useEffect will handle navigation or step change
       toast({ title: authMode === "signup" ? "Sign Up Successful" : "Sign In Successful", description: "Welcome to French Breeze!" });
+      // useEffect will handle navigation or step change
     } catch (err: any) {
       const errorMessage = err.message || "Authentication failed. Please try again.";
       setError(errorMessage);
@@ -158,7 +152,8 @@ export default function AuthAndOnboardingPage() {
     if (nameInput.trim() && selectedLevel) {
       setIsSubmitting(true);
       try {
-        await setUserName(nameInput.trim(), true);
+        // setUserName will also update Firebase Auth profile if name changes and flag is true
+        await setUserName(nameInput.trim(), true); 
         await setLevel(selectedLevel);
         toast({ title: "Profile Updated", description: "Your details have been saved."});
         // Navigation to dashboard will be handled by the main useEffect
@@ -176,7 +171,7 @@ export default function AuthAndOnboardingPage() {
     }
   };
 
-  if (onboardingStep === "loading" || loadingAuth) {
+  if (onboardingStep === "loading" || loadingAuth || loadingUserData) { 
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-accent/30">
         <Wind className="h-16 w-16 text-primary mb-4 animate-spin" />
@@ -188,7 +183,7 @@ export default function AuthAndOnboardingPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-background to-accent/30">
       <div
-        className="mb-8 flex items-center justify-center w-32 h-32 bg-primary/10 rounded-full shadow-lg"
+        className="mb-8 flex items-center justify-center"
         data-ai-hint="app logo"
       >
         <Wind className="h-16 w-16 text-primary" />
@@ -275,7 +270,7 @@ export default function AuthAndOnboardingPage() {
                 <Label className="text-lg font-medium">Choose your French level:</Label>
                 <RadioGroup
                   value={selectedLevel || "Beginner"}
-                  onValueChange={(value: FrenchLevel) => setSelectedLevel(value)}
+                  onValueChange={(value: string) => setSelectedLevel(value as FrenchLevel)}
                   className="space-y-2 pt-2"
                 >
                   {(["Beginner", "Intermediate", "Advanced"] as FrenchLevel[]).map((levelOption) => (

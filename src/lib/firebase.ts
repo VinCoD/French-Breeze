@@ -1,8 +1,7 @@
 
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-// Add other Firebase services like Firestore here as needed
-// import { getFirestore, type Firestore } from "firebase/firestore"; // Commented out
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
@@ -13,7 +12,6 @@ const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
 const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 
-// Standard check for API Key presence
 if (!apiKey) {
   const errorMessage = "Warning: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined. " +
     "Firebase will likely fail to initialize if this is not an intentional setup for specific environments. Please ensure that: \n" +
@@ -31,7 +29,7 @@ const firebaseConfig = {
   storageBucket: storageBucket,
   messagingSenderId: messagingSenderId,
   appId: appId,
-  measurementId: measurementId // Include if you use Analytics
+  measurementId: measurementId 
 };
 
 // Initialize Firebase
@@ -43,7 +41,6 @@ if (!getApps().length) {
 }
 
 const auth: Auth = getAuth(app);
-// const db: Firestore = getFirestore(app); // Commented out: Initialize Firestore
+const db: Firestore = getFirestore(app); // Initialize Firestore
 
-export { app, auth /*, db */ }; // Commented out db export
-
+export { app, auth, db };
