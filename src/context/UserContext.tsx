@@ -12,7 +12,6 @@ import {
   updateProfile,
   GoogleAuthProvider, 
   signInWithPopup,
-  // FacebookAuthProvider // Removed Facebook
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
 import { doc, setDoc, getDoc, onSnapshot, Timestamp, type DocumentData } from 'firebase/firestore';
@@ -34,7 +33,6 @@ interface UserContextType {
   signUpWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithGoogle: () => Promise<User | null>; 
-  // signInWithFacebook: () => Promise<User | null>; // Removed Facebook
   signOut: () => Promise<void>;
 }
 
@@ -58,7 +56,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setUserNameState(null);
     setProgressState({});
     setDailyStreakState(0);
-    if (firebaseUser?.uid) { // Clear specific user's local storage
+    if (firebaseUser?.uid) { 
         localStorage.removeItem(`frenchBreezeLevel_${firebaseUser.uid}`);
         localStorage.removeItem(`frenchBreezeUserName_${firebaseUser.uid}`);
         localStorage.removeItem(`frenchBreezeProgress_${firebaseUser.uid}`);
@@ -73,14 +71,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setFirebaseUser(user);
       
       if (firestoreUnsubscribe) {
-        firestoreUnsubscribe(); // Unsubscribe from previous user's listener
+        firestoreUnsubscribe(); 
         setFirestoreUnsubscribe(null);
       }
 
       if (user) {
         const userDocRef = doc(db, USERS_COLLECTION, user.uid);
 
-        const unsub = onSnapshot(userDocRef, (docSnap) => {
+        // Make this onSnapshot callback async
+        const unsub = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data() as DocumentData;
             setUserNameState(data.name || user.displayName || null);
@@ -88,13 +87,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setProgressState(data.progress || {});
             setDailyStreakState(data.dailyStreak || 0);
 
-            // Update local storage as a cache
             localStorage.setItem(`frenchBreezeUserName_${user.uid}`, data.name || user.displayName || "");
             if(data.level) localStorage.setItem(`frenchBreezeLevel_${user.uid}`, data.level); else localStorage.removeItem(`frenchBreezeLevel_${user.uid}`);
             localStorage.setItem(`frenchBreezeProgress_${user.uid}`, JSON.stringify(data.progress || {}));
             localStorage.setItem(`frenchBreezeStreak_${user.uid}`, (data.dailyStreak || 0).toString());
             
-            // Streak Logic with Firestore's lastLoginDate
             const today = new Date().toDateString();
             const lastLoginFirestore = data.lastLoginDate instanceof Timestamp 
                 ? data.lastLoginDate.toDate().toDateString() 
@@ -103,19 +100,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             if (lastLoginFirestore) {
               const yesterday = new Date(Date.now() - 86400000).toDateString();
               if (lastLoginFirestore !== today && lastLoginFirestore !== yesterday) {
-                // Reset streak if last login wasn't today or yesterday
                  setDoc(userDocRef, { dailyStreak: 0, lastLoginDate: Timestamp.fromDate(new Date()) }, { merge: true });
-              } else if (lastLoginFirestore !== today) {
-                // If last login was yesterday, incrementStreak would handle it if called by dashboard
               }
             } else {
-              // First login, or no lastLoginDate set. Set it now.
               setDoc(userDocRef, { lastLoginDate: Timestamp.fromDate(new Date()) }, { merge: true });
             }
-            localStorage.setItem(`frenchBreezeLastVisit_${user.uid}`, today); // Keep this for UI check before Firestore write
+            localStorage.setItem(`frenchBreezeLastVisit_${user.uid}`, today); 
 
           } else {
-            // Document doesn't exist, create it (e.g., new user or migrating from local storage)
             const localName = localStorage.getItem(`frenchBreezeUserName_${user.uid}`) || user.displayName;
             const localLevel = localStorage.getItem(`frenchBreezeLevel_${user.uid}`) as FrenchLevel;
             const localProgressString = localStorage.getItem(`frenchBreezeProgress_${user.uid}`);
@@ -126,19 +118,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             
             const initialData = {
               name: localName || null,
+              email: user.email || null, // Store email on first creation
               level: localLevel || null,
               progress: localProgress || {},
               dailyStreak: localStreak || 0,
               lastLoginDate: localLastVisit ? Timestamp.fromDate(new Date(localLastVisit)) : Timestamp.fromDate(new Date()),
               createdAt: Timestamp.fromDate(new Date()),
             };
-            await setDoc(userDocRef, initialData);
-            // State will be updated by the onSnapshot listener picking up the new doc
+            await setDoc(userDocRef, initialData); // This await is now valid
           }
         });
         setFirestoreUnsubscribe(() => unsub);
 
-      } else { // User is null (logged out)
+      } else { 
         clearLocalUserData();
       }
       setLoadingAuth(false);
@@ -150,7 +142,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         firestoreUnsubscribe();
       }
     };
-  }, [clearLocalUserData, firestoreUnsubscribe]); // Added dependencies
+  }, [clearLocalUserData, firestoreUnsubscribe]); 
 
   const setLevel = async (newLevel: FrenchLevel) => {
     setLevelState(newLevel);
@@ -181,9 +173,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         await Promise.all(tasks);
-        if (updateUserProfileFlag && auth.currentUser) setFirebaseUser(auth.currentUser); // Refresh user with updated profile
+        if (updateUserProfileFlag && auth.currentUser) {
+            // Create a new user object to trigger re-render if needed, though onAuthStateChanged should handle most cases
+            const refreshedUser = {...auth.currentUser};
+            setFirebaseUser(refreshedUser); 
+        }
       } catch (error) {
         console.error("Error saving name:", error);
+        // Re-throw or handle more gracefully if needed
+        throw error;
       }
     }
   };
@@ -204,45 +202,42 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const incrementStreak = async () => {
     if (!firebaseUser) return;
     const todayString = new Date().toDateString();
-    const lastVisitLocal = localStorage.getItem(`frenchBreezeLastVisit_${firebaseUser.uid}`);
-
-    // Primarily rely on Firestore data if available, but use local for immediate check
-    const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
-    const docSnap = await getDoc(userDocRef);
-    let currentStreak = dailyStreak; // from context state
-    let lastLoginDateString = lastVisitLocal;
-
-    if(docSnap.exists()){
-        const data = docSnap.data();
-        currentStreak = data.dailyStreak || 0;
-        if(data.lastLoginDate instanceof Timestamp){
-            lastLoginDateString = data.lastLoginDate.toDate().toDateString();
-        } else if (typeof data.lastLoginDate === 'string') {
-            lastLoginDateString = new Date(data.lastLoginDate).toDateString();
-        }
-    }
     
-    if (lastLoginDateString !== todayString) {
-      const newStreak = currentStreak + 1;
-      setDailyStreakState(newStreak); // Update local state immediately
-      localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, newStreak.toString());
-      localStorage.setItem(`frenchBreezeLastVisit_${firebaseUser.uid}`, todayString);
-      try {
+    const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
+    try {
+      const docSnap = await getDoc(userDocRef);
+      let currentStreak = 0;
+      let lastLoginDateString = null;
+
+      if(docSnap.exists()){
+          const data = docSnap.data();
+          currentStreak = data.dailyStreak || 0;
+          if(data.lastLoginDate instanceof Timestamp){
+              lastLoginDateString = data.lastLoginDate.toDate().toDateString();
+          } else if (typeof data.lastLoginDate === 'string') {
+              lastLoginDateString = new Date(data.lastLoginDate).toDateString();
+          }
+      }
+      
+      if (lastLoginDateString !== todayString) {
+        const newStreak = currentStreak + 1;
+        // setDailyStreakState(newStreak); // State update will come from onSnapshot
+        // localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, newStreak.toString());
+        // localStorage.setItem(`frenchBreezeLastVisit_${firebaseUser.uid}`, todayString);
         await setDoc(userDocRef, { 
           dailyStreak: newStreak, 
           lastLoginDate: Timestamp.fromDate(new Date()) 
         }, { merge: true });
-      } catch (error) {
-        console.error("Error incrementing streak in Firestore:", error);
       }
+    } catch (error) {
+       console.error("Error incrementing streak in Firestore:", error);
     }
   };
   
   const resetStreak = async () => {
     if (!firebaseUser) return;
-    setDailyStreakState(0); // Update local state
-    localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, "0");
-    // lastLoginDate will be updated on next login/incrementStreak
+    // setDailyStreakState(0); // State update will come from onSnapshot
+    // localStorage.setItem(`frenchBreezeStreak_${firebaseUser.uid}`, "0");
     try {
       const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
       await setDoc(userDocRef, { dailyStreak: 0 }, { merge: true });
@@ -265,7 +260,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Firestore data loading/creation handled by onSnapshot in useEffect
       return userCredential.user;
     } catch (error) {
       console.error("Error signing in:", error);
@@ -277,11 +271,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // Firestore data loading/creation handled by onSnapshot in useEffect
-      // If user has displayName, set it immediately if not already set by Firestore listener
-      if (result.user && result.user.displayName && !userName) {
-        await setUserName(result.user.displayName, false); // Don't update Firebase Auth profile if it's already from Google
-      }
+      // Firestore data handling (including initial name set if needed) done by onAuthStateChanged
       return result.user;
     } catch (error) {
       console.error("Error signing in with Google:", error);
@@ -292,7 +282,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
-      // clearLocalUserData() and firestoreUnsubscribe() handled by onAuthStateChanged effect
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -321,3 +310,4 @@ export const useUser = () => {
   }
   return context;
 };
+
